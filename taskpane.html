@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collega-netwerk</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+  :root { --ink:#1f2937; --mute:#6b7280; --line:#e5e7eb; --bg:#f8fafc; --acc:#0f766e; --acc-soft:#ccfbf1; --warn:#b45309; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; }
+  body { font: 13px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; color:var(--ink); background:#fff; display:flex; flex-direction:column; }
+  header { display:flex; align-items:baseline; gap:8px; padding:10px 12px 6px; }
+  header h1 { font-size:15px; margin:0; }
+  header span { color:var(--mute); font-size:12px; }
+  nav { display:flex; border-bottom:1px solid var(--line); padding:0 8px; }
+  nav button { flex:1; background:none; border:0; border-bottom:2px solid transparent; padding:7px 2px; font:inherit; color:var(--mute); cursor:pointer; }
+  nav button.on { color:var(--acc); border-color:var(--acc); font-weight:600; }
+  #filters { padding:8px 12px; background:var(--bg); border-bottom:1px solid var(--line); display:grid; gap:6px; grid-template-columns:1fr 1fr; }
+  #filters input { grid-column:1 / -1; }
+  input, select, textarea { font:inherit; color:inherit; width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
+  input:focus, select:focus, textarea:focus { outline:2px solid var(--acc-soft); border-color:var(--acc); }
+  main { flex:1; overflow:auto; min-height:0; }
+  .tab { display:none; padding:10px 12px; }
+  .tab.on { display:block; }
+  button.btn { font:inherit; padding:5px 10px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; cursor:pointer; color:var(--ink); }
+  button.btn:hover { background:var(--bg); }
+  button.btn.pri { background:var(--acc); border-color:var(--acc); color:#fff; }
+  button.btn.armed { background:#fef3c7; border-color:var(--warn); color:var(--warn); }
+  .row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .card { border:1px solid var(--line); border-radius:8px; padding:9px 10px; margin-bottom:8px; }
+  .card h3 { margin:0; font-size:14px; }
+  .card .sub { color:var(--mute); font-size:12px; margin-bottom:5px; }
+  .card .ask { background:var(--acc-soft); border-radius:6px; padding:5px 8px; margin:5px 0; }
+  .card .ask b { color:var(--acc); }
+  .card .meta { font-size:12px; color:var(--mute); margin-top:3px; }
+  .chip { display:inline-block; font-size:11.5px; padding:1px 8px; margin:2px 3px 2px 0; border-radius:10px; background:#eef2f7; border:0; color:var(--ink); cursor:pointer; font-family:inherit; }
+  .chip.d { background:#fef3c7; }
+  .chip:hover { filter:brightness(.95); }
+  .empty { color:var(--mute); text-align:center; padding:26px 10px; }
+  form label { display:block; font-size:12px; color:var(--mute); margin:8px 0 2px; }
+  form .two { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .sugg { margin-top:3px; }
+  #mapwrap { border:1px solid var(--line); border-radius:8px; height:56vh; min-height:260px; overflow:hidden; background:#fff; touch-action:none; cursor:grab; margin:8px 0; }
+  #mapwrap.drag { cursor:grabbing; }
+  #map { width:100%; height:100%; display:block; user-select:none; }
+  #map [data-pid], #map [data-group] { cursor:pointer; }
+  h4 { margin:14px 0 4px; font-size:13px; }
+  p.hint { color:var(--mute); font-size:12px; margin:3px 0 7px; }
+  #toast { position:fixed; left:50%; bottom:14px; transform:translateX(-50%); background:#111827; color:#fff; padding:7px 12px; border-radius:8px; font-size:12.5px; max-width:90%; opacity:0; pointer-events:none; transition:opacity .2s; z-index:9; }
+  #toast.on { opacity:1; }
+  /* Groot scherm (alleen-lezen) */
+  body.groot nav, body.groot #tab-form, body.groot #tab-meer, body.groot #tab-zoeken, body.groot .edit, body.groot #btnGroot, body.groot #btnPng, body.groot #sort { display:none !important; }
+  body.groot #filters { grid-template-columns:2fr 1fr 1fr 1fr; }
+  body.groot #filters input { grid-column:auto; }
+  body.groot #tab-map { display:flex !important; flex-direction:column; height:100%; }
+  body.groot #mapwrap { flex:1; height:auto; }
+  body.groot #mapcard { position:fixed; right:18px; bottom:18px; width:320px; background:#fff; box-shadow:0 6px 24px rgba(0,0,0,.18); border-radius:8px; }
+  body.groot #mapcard .card { margin:0; }
+</style>
+</head>
+<body>
+<header><h1>Collega-netwerk</h1><span id="count"></span></header>
+<nav>
+  <button data-tab="zoeken" class="on">Zoeken</button>
+  <button data-tab="map">Mindmap</button>
+  <button data-tab="form">+ Collega</button>
+  <button data-tab="meer">Meer</button>
+</nav>
+<section id="filters">
+  <input id="q" type="search" placeholder="Zoek op onderwerp, naam, dossier…" autocomplete="off">
+  <select id="fExp" title="Expertise"></select>
+  <select id="fOrg" title="Organisatie"></select>
+  <select id="fDos" title="Dossier"></select>
+  <select id="sort" title="Sortering">
+    <option value="naam">Sorteer: naam</option>
+    <option value="oud">Sorteer: langst niet gesproken</option>
+    <option value="nieuw">Sorteer: recent gesproken</option>
+  </select>
+</section>
+<main>
+  <div class="tab on" id="tab-zoeken"><div id="results"></div></div>
+
+  <div class="tab" id="tab-map">
+    <div class="row">
+      <select id="groep" style="width:auto;flex:1">
+        <option value="expertise">Groepeer op expertise</option>
+        <option value="org">Groepeer op organisatie</option>
+        <option value="dossiers">Groepeer op dossier</option>
+      </select>
+      <button class="btn" id="zoomUit" title="Uitzoomen">−</button>
+      <button class="btn" id="zoomIn" title="Inzoomen">+</button>
+      <button class="btn" id="zoomFit">Passend</button>
+    </div>
+    <div id="mapwrap"><svg id="map" xmlns="http://www.w3.org/2000/svg"><g id="vp"></g></svg></div>
+    <div class="row">
+      <button class="btn" id="btnGroot">Groot scherm</button>
+      <button class="btn" id="btnPng">Mindmap op pagina zetten</button>
+    </div>
+    <p class="hint">Sleep om te schuiven, scroll om te zoomen. Klik op een thema om het in of uit te klappen, op een naam voor de details.</p>
+    <div id="mapcard"></div>
+  </div>
+
+  <div class="tab" id="tab-form">
+    <form id="form" autocomplete="off">
+      <label>Naam *</label><input name="naam" required>
+      <div class="two">
+        <div><label>Organisatie</label><input name="org" list="orgList"><datalist id="orgList"></datalist></div>
+        <div><label>Team / afdeling</label><input name="team"></div>
+      </div>
+      <label>Rol / functie</label><input name="rol">
+      <label>Expertise en thema's (komma's ertussen)</label><input name="expertise" placeholder="waterstof, vergunningen">
+      <div class="sugg" id="suggExp"></div>
+      <label>Waarvoor benaderen</label><textarea name="benader" rows="2" placeholder="Bel voor…, weet alles van…"></textarea>
+      <label>Dossiers / projecten (komma's ertussen)</label><input name="dossiers">
+      <div class="sugg" id="suggDos"></div>
+      <div class="two">
+        <div><label>Laatst gesproken</label><input name="laatst" type="date"></div>
+        <div><label>Contact (mail / tel)</label><input name="contact"></div>
+      </div>
+      <label>Notitie</label><textarea name="notitie" rows="2"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn pri" type="submit" id="btnSave">Opslaan</button>
+        <button class="btn" type="button" id="btnCancel">Leegmaken</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="tab" id="tab-meer">
+    <p class="hint" id="status"></p>
+    <h4>Naar OneNote</h4>
+    <p class="hint">Zet de collega's die nu door je filters komen als tabel op de geopende pagina.</p>
+    <button class="btn" id="btnTabel">Overzichtstabel op pagina zetten</button>
+    <h4>Back-up</h4>
+    <p class="hint">Je netwerk staat alleen in deze browser. Maak af en toe een back-up, of gebruik dit om het naar een andere browser over te zetten.</p>
+    <textarea id="backup" rows="5" placeholder="Hier verschijnt de back-up, of plak hier een eerdere back-up om te importeren."></textarea>
+    <div class="row" style="margin-top:6px">
+      <button class="btn" id="btnToon">Toon back-up</button>
+      <button class="btn" id="btnKopieer">Kopieer</button>
+      <button class="btn" id="btnDownload">Download</button>
+      <button class="btn" id="btnImport">Importeer</button>
+    </div>
+    <h4>Overig</h4>
+    <div class="row">
+      <button class="btn" id="btnDemo">Voorbeeldcollega's laden</button>
+      <button class="btn" id="btnWis">Alles wissen</button>
+    </div>
+  </div>
+</main>
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'collegaNetwerk.v1';
+  var GROOT = /[?&]groot=1/.test(location.search);
+  var people = [], sel = null, editingId = null, collapsed = {}, inOneNote = false, inOffice = false, storageOk = true;
+  var view = { x: 0, y: 0, k: 1 }, bounds = null, readOnly = GROOT;
+  var PALET = ['#0f766e', '#1d4ed8', '#b45309', '#7e22ce', '#be123c', '#4d7c0f', '#0e7490', '#a16207', '#4338ca', '#9d174d'];
+  var $ = function (s) { return document.querySelector(s); };
+
+  /* ---------- hulpfuncties ---------- */
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function tags(s) {
+    var seen = {}, out = [];
+    String(s || '').split(/[,;]/).forEach(function (t) { t = t.trim(); var k = t.toLowerCase(); if (t && !seen[k]) { seen[k] = 1; out.push(t); } });
+    return out;
+  }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function vandaag() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function geleden(iso) {
+    if (!iso) return '';
+    var dagen = Math.round((new Date(vandaag()) - new Date(iso)) / 864e5);
+    if (isNaN(dagen)) return '';
+    if (dagen <= 0) return 'vandaag';
+    if (dagen === 1) return 'gisteren';
+    if (dagen < 14) return dagen + ' dagen geleden';
+    if (dagen < 70) return Math.round(dagen / 7) + ' weken geleden';
+    return Math.round(dagen / 30.4) + ' maanden geleden';
+  }
+  function datum(iso) { var d = new Date(iso); return isNaN(d) ? iso : d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }); }
+  function kort(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  var toastT;
+  function toast(msg) { var t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove('on'); }, 3500); }
+  function bevestig(btn, fn) {           // twee keer klikken i.p.v. confirm() (dat mag niet in een invoegtoepassing)
+    if (btn.classList.contains('armed')) { btn.classList.remove('armed'); btn.textContent = btn.dataset.txt; fn(); return; }
+    btn.dataset.txt = btn.textContent; btn.textContent = 'Klik nogmaals'; btn.classList.add('armed');
+    setTimeout(function () { if (btn.classList.contains('armed')) { btn.classList.remove('armed'); btn.textContent = btn.dataset.txt; } }, 3000);
+  }
+
+  /* ---------- opslag ---------- */
+  function schoon(p) {
+    return { id: p.id || uid(), naam: String(p.naam || '').trim(), org: String(p.org || '').trim(), team: String(p.team || '').trim(), rol: String(p.rol || '').trim(),
+      expertise: Array.isArray(p.expertise) ? tags(p.expertise.join(',')) : tags(p.expertise), benader: String(p.benader || '').trim(),
+      dossiers: Array.isArray(p.dossiers) ? tags(p.dossiers.join(',')) : tags(p.dossiers), laatst: String(p.laatst || ''), contact: String(p.contact || '').trim(), notitie: String(p.notitie || '').trim() };
+  }
+  function load() {
+    var raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (e) { storageOk = false; }
+    try { people = (JSON.parse(raw || '[]') || []).map(schoon).filter(function (p) { return p.naam; }); } catch (e) { people = []; }
+  }
+  function save() {
+    if (readOnly) return;
+    try { localStorage.setItem(KEY, JSON.stringify(people)); } catch (e) { storageOk = false; toast('Opslaan in de browser lukt niet. Maak een back-up via Meer.'); }
+  }
+
+  /* ---------- filteren ---------- */
+  function uniek(veld) {
+    var m = {};
+    people.forEach(function (p) { (Array.isArray(p[veld]) ? p[veld] : [p[veld]]).forEach(function (v) { if (v) m[v.toLowerCase()] = v; }); });
+    return Object.keys(m).sort().map(function (k) { return m[k]; });
+  }
+  function heeft(lijst, v) { v = v.toLowerCase(); return lijst.some(function (x) { return x.toLowerCase() === v; }); }
+  function filtered() {
+    var woorden = $('#q').value.toLowerCase().split(/\s+/).filter(Boolean);
+    var fe = $('#fExp').value, fo = $('#fOrg').value, fd = $('#fDos').value, s = $('#sort').value;
+    var out = people.filter(function (p) {
+      if (fe && !heeft(p.expertise, fe)) return false;
+      if (fo && p.org.toLowerCase() !== fo.toLowerCase()) return false;
+      if (fd && !heeft(p.dossiers, fd)) return false;
+      if (!woorden.length) return true;
+      var hooi = [p.naam, p.org, p.team, p.rol, p.expertise.join(' '), p.benader, p.dossiers.join(' '), p.notitie].join(' ').toLowerCase();
+      return woorden.every(function (w) { return hooi.indexOf(w) >= 0; });
+    });
+    out.sort(function (a, b) {
+      if (s === 'oud') return (a.laatst || '0').localeCompare(b.laatst || '0') || a.naam.localeCompare(b.naam);
+      if (s === 'nieuw') return (b.laatst || '0').localeCompare(a.laatst || '0') || a.naam.localeCompare(b.naam);
+      return a.naam.localeCompare(b.naam, 'nl');
+    });
+    return out;
+  }
+  function vulSelect(el, label, waarden) {
+    var huidig = el.value;
+    el.innerHTML = '<option value="">' + label + '</option>' + waarden.map(function (v) { return '<option value="' + esc(v) + '">' + esc(v) + '</option>'; }).join('');
+    el.value = waarden.some(function (v) { return v === huidig; }) ? huidig : '';
+  }
+  function vulFilters() {
+    vulSelect($('#fExp'), 'Alle expertise', uniek('expertise'));
+    vulSelect($('#fOrg'), 'Alle organisaties', uniek('org'));
+    vulSelect($('#fDos'), 'Alle dossiers', uniek('dossiers'));
+    $('#orgList').innerHTML = uniek('org').map(function (v) { return '<option value="' + esc(v) + '">'; }).join('');
+    $('#suggExp').innerHTML = uniek('expertise').map(function (v) { return '<button type="button" class="chip" data-add="expertise" data-v="' + esc(v) + '">+ ' + esc(v) + '</button>'; }).join('');
+    $('#suggDos').innerHTML = uniek('dossiers').map(function (v) { return '<button type="button" class="chip d" data-add="dossiers" data-v="' + esc(v) + '">+ ' + esc(v) + '</button>'; }).join('');
+  }
+
+  /* ---------- kaartjes ---------- */
+  function kaart(p) {
+    var sub = [p.rol, p.team, p.org].filter(Boolean).map(esc).join(' · ');
+    var h = '<div class="card" data-card="' + esc(p.id) + '"><h3>' + esc(p.naam) + '</h3>';
+    if (sub) h += '<div class="sub">' + sub + '</div>';
+    if (p.benader) h += '<div class="ask"><b>Benader voor:</b> ' + esc(p.benader) + '</div>';
+    if (p.expertise.length) h += '<div>' + p.expertise.map(function (t) { return '<button class="chip" data-fexp="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div>';
+    if (p.dossiers.length) h += '<div>' + p.dossiers.map(function (t) { return '<button class="chip d" data-fdos="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div>';
+    if (p.laatst) h += '<div class="meta">Laatst gesproken: ' + esc(datum(p.laatst)) + ' (' + esc(geleden(p.laatst)) + ')</div>';
+    if (p.contact) h += '<div class="meta">' + (/^\S+@\S+\.\S+$/.test(p.contact) ? '<a href="mailto:' + esc(p.contact) + '">' + esc(p.contact) + '</a>' : esc(p.contact)) + '</div>';
+    if (p.notitie) h += '<div class="meta">' + esc(p.notitie) + '</div>';
+    h += '<div class="row edit" style="margin-top:7px"><button class="btn" data-act="vandaag">Vandaag gesproken</button><button class="btn" data-act="bewerk">Bewerk</button><button class="btn" data-act="weg">Verwijder</button></div></div>';
+    return h;
+  }
+  function renderResults() {
+    var lijst = filtered();
+    $('#count').textContent = lijst.length === people.length ? people.length + ' collega\'s' : lijst.length + ' van ' + people.length;
+    if (!people.length) { $('#results').innerHTML = '<div class="empty">Nog geen collega\'s.<br>Voeg er een toe via <b>+ Collega</b>, of laad voorbeelden via <b>Meer</b>.</div>'; return; }
+    $('#results').innerHTML = lijst.length ? lijst.map(kaart).join('') : '<div class="empty">Niemand gevonden met deze zoekopdracht.</div>';
+  }
+  function renderMapCard() {
+    var p = people.filter(function (x) { return x.id === sel; })[0];
+    $('#mapcard').innerHTML = p ? kaart(p) : '';
+  }
+
+  /* ---------- mindmap ---------- */
+  function mapData() {
+    var modus = $('#groep').value, lijst = filtered(), groepen = {}, namen = {};
+    lijst.forEach(function (p) {
+      var keys = modus === 'org' ? [p.org] : p[modus];
+      keys = keys.filter(Boolean);
+      if (!keys.length) keys = ['Niet ingevuld'];
+      keys.forEach(function (k) { var lk = k.toLowerCase(); namen[lk] = namen[lk] || k; (groepen[lk] = groepen[lk] || []).push(p); });
+    });
+    return Object.keys(groepen).sort().map(function (lk) { return { key: lk, naam: namen[lk], leden: groepen[lk] }; });
+  }
+  function mapMarkup(breed) {
+    var groepen = mapData(), RIJ = 26, GAT = 16, GX = 120, TEKEN = 6.9;
+    var tweezijdig = breed >= 560 && groepen.length > 1;
+    var zijden = [{ dir: 1, items: [], h: 0 }, { dir: -1, items: [], h: 0 }];
+    groepen.forEach(function (g, i) {
+      g.kleur = PALET[i % PALET.length];
+      g.dicht = !!collapsed[g.key];
+      g.h = (g.dicht ? 1 : g.leden.length) * RIJ + GAT;
+      g.label = kort(g.naam, 24) + (g.dicht ? ' (' + g.leden.length + ')' : '');
+      g.w = Math.round(g.label.length * TEKEN + 24);
+      var z = tweezijdig && zijden[1].h < zijden[0].h ? zijden[1] : zijden[0];
+      z.items.push(g); z.h += g.h;
+    });
+    var s = '', minX = -70, maxX = 70, minY = -30, maxY = 30, takken = '', knopen = '';
+    if (breed < 560) {                                   // smal taakvenster: mindmap als boom van boven naar beneden
+      var yy = 42, mx = 62;
+      groepen.forEach(function (g) {
+        var gy = yy;
+        takken += '<path d="M-46,18 V' + gy + ' H-30" fill="none" stroke="' + g.kleur + '" stroke-width="2.2" stroke-linejoin="round"/>';
+        knopen += '<g data-group="' + esc(g.key) + '"><rect x="-30" y="' + (gy - 12) + '" width="' + g.w + '" height="24" rx="12" fill="' + g.kleur + '"/>' +
+          '<text x="' + (g.w / 2 - 30) + '" y="' + (gy + 4) + '" text-anchor="middle" fill="#fff" font-size="12" font-weight="600">' + esc(g.label) + '</text></g>';
+        mx = Math.max(mx, g.w - 30); yy += 30;
+        if (!g.dicht) g.leden.forEach(function (p) {
+          var aan = p.id === sel, naam = kort(p.naam, 24), org = p.org ? kort(p.org, 16) : '';
+          var w = Math.round((naam.length + (org ? org.length + 3 : 0)) * TEKEN + 16);
+          takken += '<path d="M-16,' + (gy + 12) + ' V' + yy + ' H-6" fill="none" stroke="' + g.kleur + '" stroke-width="1.3" opacity=".75"/>';
+          knopen += '<g data-pid="' + esc(p.id) + '"><rect x="-8" y="' + (yy - RIJ / 2 + 1) + '" width="' + (w + 8) + '" height="' + (RIJ - 2) + '" rx="5" fill="' + (aan ? '#ccfbf1' : '#ffffff') + '" fill-opacity="' + (aan ? 1 : 0) + '"/>' +
+            '<circle cx="-2" cy="' + yy + '" r="3.5" fill="' + g.kleur + '"/><text x="7" y="' + (yy + 4) + '" font-size="12" fill="#1f2937"><tspan font-weight="' + (aan ? 700 : 500) + '">' + esc(naam) + '</tspan>' +
+            (org ? '<tspan fill="#6b7280"> · ' + esc(org) + '</tspan>' : '') + '</text></g>';
+          mx = Math.max(mx, w + 4); yy += RIJ;
+        });
+        yy += 8;
+      });
+      s = takken + '<rect x="-62" y="-18" width="124" height="36" rx="18" fill="#111827"/><text x="0" y="5" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">Mijn netwerk</text>' + knopen;
+      if (!groepen.length) s += '<text x="-62" y="52" font-size="12" fill="#6b7280">Geen collega\'s om te tonen</text>';
+      return { inner: s, b: { x: -72, y: -28, w: mx + 82, h: Math.max(yy, 60) + 30 } };
+    }
+    zijden.forEach(function (z) {
+      var d = z.dir, y = -z.h / 2, maxW = 0;
+      z.items.forEach(function (g) { maxW = Math.max(maxW, g.w); });
+      var LX = GX + maxW + 46;
+      z.items.forEach(function (g) {
+        var gy = y + g.h / 2, gx = d * GX, gRand = d * (GX + g.w);
+        takken += '<path d="M0,0 C' + d * GX * 0.5 + ',0 ' + d * GX * 0.5 + ',' + gy + ' ' + gx + ',' + gy + '" fill="none" stroke="' + g.kleur + '" stroke-width="2.4" stroke-linecap="round"/>';
+        knopen += '<g data-group="' + esc(g.key) + '"><rect x="' + Math.min(gx, gRand) + '" y="' + (gy - 12) + '" width="' + g.w + '" height="24" rx="12" fill="' + g.kleur + '"/>' +
+          '<text x="' + (gx + gRand) / 2 + '" y="' + (gy + 4) + '" text-anchor="middle" fill="#fff" font-size="12" font-weight="600">' + esc(g.label) + '</text></g>';
+        if (!g.dicht) g.leden.forEach(function (p, i) {
+          var ly = y + GAT / 2 + i * RIJ + RIJ / 2, lx = d * LX, mid = (gRand + lx) / 2, aan = p.id === sel;
+          var naam = kort(p.naam, 26), org = p.org ? kort(p.org, 20) : '';
+          var w = Math.round((naam.length + (org ? org.length + 3 : 0)) * TEKEN + 16);
+          takken += '<path d="M' + gRand + ',' + gy + ' C' + mid + ',' + gy + ' ' + mid + ',' + ly + ' ' + lx + ',' + ly + '" fill="none" stroke="' + g.kleur + '" stroke-width="1.3" opacity=".75"/>';
+          knopen += '<g data-pid="' + esc(p.id) + '"><rect x="' + (d > 0 ? lx - 6 : lx - w) + '" y="' + (ly - RIJ / 2 + 1) + '" width="' + (w + 6) + '" height="' + (RIJ - 2) + '" rx="5" fill="' + (aan ? '#ccfbf1' : '#ffffff') + '" fill-opacity="' + (aan ? 1 : 0) + '"/>' +
+            '<circle cx="' + lx + '" cy="' + ly + '" r="3.5" fill="' + g.kleur + '"/>' +
+            '<text x="' + (lx + d * 9) + '" y="' + (ly + 4) + '" text-anchor="' + (d > 0 ? 'start' : 'end') + '" font-size="12" fill="#1f2937"><tspan font-weight="' + (aan ? 700 : 500) + '">' + esc(naam) + '</tspan>' +
+            (org ? '<tspan fill="#6b7280"> · ' + esc(org) + '</tspan>' : '') + '</text></g>';
+          if (d > 0) maxX = Math.max(maxX, lx + w + 8); else minX = Math.min(minX, lx - w - 8);
+        });
+        if (d > 0) maxX = Math.max(maxX, gRand + 8); else minX = Math.min(minX, gRand - 8);
+        y += g.h;
+      });
+      minY = Math.min(minY, -z.h / 2); maxY = Math.max(maxY, z.h / 2);
+    });
+    s = takken + '<rect x="-62" y="-18" width="124" height="36" rx="18" fill="#111827"/><text x="0" y="5" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">Mijn netwerk</text>' + knopen;
+    if (!groepen.length) s += '<text x="0" y="52" text-anchor="middle" font-size="12" fill="#6b7280">Geen collega\'s om te tonen</text>';
+    return { inner: s, b: { x: minX - 14, y: minY - 14, w: maxX - minX + 28, h: maxY - minY + 28 } };
+  }
+  function pasToe() { $('#vp').setAttribute('transform', 'translate(' + view.x + ',' + view.y + ') scale(' + view.k + ')'); }
+  function passend() {
+    var w = $('#mapwrap').clientWidth, h = $('#mapwrap').clientHeight;
+    if (!bounds || !w || !h) return;
+    view.k = w < 560 ? Math.max(0.8, Math.min(1.1, w / bounds.w)) : Math.max(0.25, Math.min(1.25, w / bounds.w, h / bounds.h));
+    view.x = bounds.w * view.k > w ? 6 - bounds.x * view.k : (w - bounds.w * view.k) / 2 - bounds.x * view.k;
+    view.y = bounds.h * view.k > h ? 6 - bounds.y * view.k : (h - bounds.h * view.k) / 2 - bounds.y * view.k;
+    pasToe();
+  }
+  function renderMap(herpas) {
+    var wrap = $('#mapwrap');
+    if (!wrap.clientWidth) return;                      // tab niet zichtbaar
+    var m = mapMarkup(wrap.clientWidth);
+    $('#map').setAttribute('font-family', 'Segoe UI, system-ui, sans-serif');
+    $('#vp').innerHTML = m.inner;
+    var eerste = !bounds; bounds = m.b;
+    if (herpas || eerste) passend(); else pasToe();
+  }
+  function zoom(f, cx, cy) {
+    var w = $('#mapwrap');
+    if (cx == null) { cx = w.clientWidth / 2; cy = w.clientHeight / 2; }
+    var k = Math.max(0.2, Math.min(3, view.k * f)); f = k / view.k;
+    view.x = cx - (cx - view.x) * f; view.y = cy - (cy - view.y) * f; view.k = k; pasToe();
+  }
+  function mapPng(cb) {
+    var m = mapMarkup(1000), b = m.b, schaal = Math.min(2, 3600 / b.w);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + b.w + '" height="' + b.h + '" viewBox="' + b.x + ' ' + b.y + ' ' + b.w + ' ' + b.h + '" font-family="Segoe UI, Arial, sans-serif"><rect x="' + b.x + '" y="' + b.y + '" width="' + b.w + '" height="' + b.h + '" fill="#fff"/>' + m.inner + '</svg>';
+    var img = new Image();
+    img.onload = function () {
+      var c = document.createElement('canvas'); c.width = Math.round(b.w * schaal); c.height = Math.round(b.h * schaal);
+      var x = c.getContext('2d'); x.drawImage(img, 0, 0, c.width, c.height);
+      try { cb(null, c.toDataURL('image/png').split(',')[1], Math.round(b.w), Math.round(b.h)); } catch (e) { cb(e); }
+    };
+    img.onerror = function () { cb(new Error('Afbeelding maken lukte niet')); };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+
+  /* ---------- OneNote ---------- */
+  function naarPagina(fn) {
+    if (!inOneNote || typeof OneNote === 'undefined') { toast('Dit werkt alleen als de invoegtoepassing in OneNote draait.'); return; }
+    OneNote.run(function (ctx) { fn(ctx.application.getActivePage()); return ctx.sync(); })
+      .then(function () { toast('Op de pagina gezet.'); })
+      .catch(function (e) { toast('Niet gelukt: ' + (e && e.message ? e.message : e)); });
+  }
+  function tabelNaarPagina() {
+    var lijst = filtered();
+    if (!lijst.length) { toast('Geen collega\'s om te plaatsen.'); return; }
+    var kop = ['Naam', 'Organisatie / team', 'Expertise', 'Benader voor', 'Dossiers', 'Laatst gesproken'];
+    var h = '<p><b>Collega-netwerk</b> (' + esc(datum(vandaag())) + ', ' + lijst.length + ' collega\'s)</p><table border="1"><tr>' + kop.map(function (k) { return '<td><b>' + k + '</b></td>'; }).join('') + '</tr>';
+    lijst.forEach(function (p) {
+      h += '<tr>' + [p.naam, [p.org, p.team].filter(Boolean).join(' / '), p.expertise.join(', '), p.benader, p.dossiers.join(', '), p.laatst ? datum(p.laatst) : '']
+        .map(function (c) { return '<td>' + (esc(c) || '&nbsp;') + '</td>'; }).join('') + '</tr>';
+    });
+    naarPagina(function (page) { page.addOutline(40, 120, h + '</table>'); });
+  }
+  function mindmapNaarPagina() {
+    if (!inOneNote) { toast('Dit werkt alleen als de invoegtoepassing in OneNote draait.'); return; }
+    mapPng(function (err, b64, w, h) {
+      if (err) { toast('Niet gelukt: ' + err.message); return; }
+      var f = Math.min(1, 900 / w);
+      naarPagina(function (page) {
+        var o = page.addOutline(40, 120, '<p><b>Mindmap collega-netwerk</b> (' + esc(datum(vandaag())) + ')</p>');
+        o.appendImage(b64, Math.round(w * f), Math.round(h * f));
+      });
+    });
+  }
+  function grootScherm() {
+    var url = location.origin + location.pathname + '?groot=1';
+    var pakket = function () { return JSON.stringify({ people: people, groep: $('#groep').value, q: $('#q').value, fExp: $('#fExp').value, fOrg: $('#fOrg').value, fDos: $('#fDos').value }); };
+    if (inOffice && Office.context && Office.context.ui && Office.context.ui.displayDialogAsync) {
+      Office.context.ui.displayDialogAsync(url, { height: 85, width: 90, displayInIframe: true }, function (res) {
+        if (res.status !== Office.AsyncResultStatus.Succeeded) { toast('Groot scherm openen lukte niet: ' + res.error.message); return; }
+        var dlg = res.value;
+        dlg.addEventHandler(Office.EventType.DialogMessageReceived, function (arg) {
+          if (arg.message === 'klaar') { try { dlg.messageChild(pakket()); } catch (e) { /* venster leest dan uit de browseropslag */ } }
+        });
+      });
+    } else if (!window.open(url, '_blank')) toast('De browser blokkeerde het nieuwe venster.');
+  }
+  function ontvang(json) {                // groot scherm krijgt de gegevens van het taakvenster
+    try {
+      var d = JSON.parse(json);
+      people = (d.people || []).map(schoon);
+      vulFilters();
+      $('#groep').value = d.groep || 'expertise'; $('#q').value = d.q || '';
+      $('#fExp').value = d.fExp || ''; $('#fOrg').value = d.fOrg || ''; $('#fDos').value = d.fDos || '';
+      renderAll(true);
+    } catch (e) { /* negeren */ }
+  }
+
+  /* ---------- formulier ---------- */
+  function vulForm(p) {
+    var f = $('#form');
+    ['naam', 'org', 'team', 'rol', 'benader', 'laatst', 'contact', 'notitie'].forEach(function (k) { f.elements[k].value = p ? p[k] : ''; });
+    f.elements.expertise.value = p ? p.expertise.join(', ') : '';
+    f.elements.dossiers.value = p ? p.dossiers.join(', ') : '';
+    editingId = p ? p.id : null;
+    $('#btnSave').textContent = p ? 'Wijziging opslaan' : 'Opslaan';
+    $('#btnCancel').textContent = p ? 'Annuleren' : 'Leegmaken';
+  }
+  function toonTab(naam) {
+    document.querySelectorAll('nav button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === naam); });
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.id === 'tab-' + naam); });
+    $('#filters').style.display = (naam === 'zoeken' || naam === 'map') ? '' : 'none';
+    if (naam === 'map') renderMap(true);
+  }
+  function renderAll(herpas) { renderResults(); renderMap(herpas); renderMapCard(); }
+  function gewijzigd() { save(); vulFilters(); renderAll(true); }
+  function status() {
+    var s = inOneNote ? 'Verbonden met OneNote.' : 'Losse browserweergave: de knoppen "op pagina zetten" werken alleen binnen OneNote.';
+    if (!storageOk) s += ' Let op: deze browser blokkeert opslag, je gegevens blijven niet bewaard. Gebruik de back-up.';
+    $('#status').textContent = s;
+  }
+
+  /* ---------- gebeurtenissen ---------- */
+  function bind() {
+    document.querySelectorAll('nav button').forEach(function (b) { b.addEventListener('click', function () { toonTab(b.dataset.tab); }); });
+    ['q', 'fExp', 'fOrg', 'fDos', 'sort'].forEach(function (id) { $('#' + id).addEventListener('input', function () { renderAll(true); }); });
+    $('#groep').addEventListener('change', function () { collapsed = {}; renderMap(true); });
+
+    document.addEventListener('click', function (e) {
+      var t = e.target.closest('[data-fexp],[data-fdos],[data-act],[data-add]');
+      if (!t) return;
+      if (t.dataset.add) { var inp = $('#form').elements[t.dataset.add], huidig = tags(inp.value); if (!heeft(huidig, t.dataset.v)) huidig.push(t.dataset.v); inp.value = huidig.join(', '); return; }
+      if (t.dataset.fexp) { $('#fExp').value = t.dataset.fexp; renderAll(true); return; }
+      if (t.dataset.fdos) { $('#fDos').value = t.dataset.fdos; renderAll(true); return; }
+      var id = t.closest('[data-card]').dataset.card, p = people.filter(function (x) { return x.id === id; })[0];
+      if (!p) return;
+      if (t.dataset.act === 'vandaag') { p.laatst = vandaag(); save(); renderAll(); toast('Bijgewerkt.'); }
+      if (t.dataset.act === 'bewerk') { vulForm(p); toonTab('form'); }
+      if (t.dataset.act === 'weg') bevestig(t, function () { people = people.filter(function (x) { return x.id !== id; }); if (sel === id) sel = null; gewijzigd(); toast(p.naam + ' verwijderd.'); });
+    });
+
+    $('#form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var f = e.target.elements, p = schoon({ id: editingId, naam: f.naam.value, org: f.org.value, team: f.team.value, rol: f.rol.value, expertise: f.expertise.value, benader: f.benader.value, dossiers: f.dossiers.value, laatst: f.laatst.value, contact: f.contact.value, notitie: f.notitie.value });
+      if (!p.naam) return;
+      var i = people.map(function (x) { return x.id; }).indexOf(p.id);
+      if (i >= 0) people[i] = p; else people.push(p);
+      sel = p.id; vulForm(null); gewijzigd(); toonTab('zoeken'); toast(p.naam + ' opgeslagen.');
+    });
+    $('#btnCancel').addEventListener('click', function () { vulForm(null); });
+
+    // mindmap: slepen, zoomen, klikken
+    var wrap = $('#mapwrap'), sleep = null, bewoog = false;
+    wrap.addEventListener('pointerdown', function (e) { sleep = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; bewoog = false; });
+    window.addEventListener('pointermove', function (e) {
+      if (!sleep) return;
+      var dx = e.clientX - sleep.x, dy = e.clientY - sleep.y;
+      if (Math.abs(dx) + Math.abs(dy) > 4) { bewoog = true; wrap.classList.add('drag'); }
+      if (bewoog) { view.x = sleep.vx + dx; view.y = sleep.vy + dy; pasToe(); }
+    });
+    window.addEventListener('pointerup', function () { sleep = null; wrap.classList.remove('drag'); });
+    wrap.addEventListener('wheel', function (e) { e.preventDefault(); var r = wrap.getBoundingClientRect(); zoom(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+    wrap.addEventListener('click', function (e) {
+      if (bewoog) return;
+      var g = e.target.closest('[data-group]'), n = e.target.closest('[data-pid]');
+      if (g) { collapsed[g.dataset.group] = !collapsed[g.dataset.group]; renderMap(false); }
+      else if (n) { sel = sel === n.dataset.pid ? null : n.dataset.pid; renderMap(false); renderMapCard(); }
+    });
+    $('#zoomIn').addEventListener('click', function () { zoom(1.25); });
+    $('#zoomUit').addEventListener('click', function () { zoom(0.8); });
+    $('#zoomFit').addEventListener('click', passend);
+    $('#btnGroot').addEventListener('click', grootScherm);
+    $('#btnPng').addEventListener('click', mindmapNaarPagina);
+    window.addEventListener('resize', function () { renderMap(true); });
+
+    // meer
+    $('#btnTabel').addEventListener('click', tabelNaarPagina);
+    $('#btnToon').addEventListener('click', function () { var t = $('#backup'); t.value = JSON.stringify(people, null, 1); t.select(); });
+    $('#btnKopieer').addEventListener('click', function () {
+      var t = $('#backup'); if (!t.value.trim()) t.value = JSON.stringify(people, null, 1);
+      t.select(); var ok = false; try { ok = document.execCommand('copy'); } catch (e) { }
+      toast(ok ? 'Gekopieerd. Plak het in een bestand of op een OneNote-pagina.' : 'Kopiëren lukte niet: selecteer de tekst en kopieer handmatig.');
+    });
+    $('#btnDownload').addEventListener('click', function () {
+      try {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(people, null, 1)], { type: 'application/json' }));
+        a.download = 'collega-netwerk-' + vandaag() + '.json'; document.body.appendChild(a); a.click(); a.remove();
+      } catch (e) { toast('Downloaden lukte niet, gebruik Kopieer.'); }
+    });
+    $('#btnImport').addEventListener('click', function () {
+      var nieuw;
+      try { nieuw = JSON.parse($('#backup').value); if (!Array.isArray(nieuw)) throw 0; } catch (e) { toast('Plak eerst een geldige back-up in het tekstvak.'); return; }
+      var n = 0;
+      nieuw.map(schoon).forEach(function (p) { if (!p.naam) return; var i = people.map(function (x) { return x.id; }).indexOf(p.id); if (i >= 0) people[i] = p; else people.push(p); n++; });
+      gewijzigd(); toast(n + ' collega\'s geïmporteerd.');
+    });
+    $('#btnDemo').addEventListener('click', function () {
+      [{ naam: 'Sanne Voorbeeld', org: 'Havenbedrijf', team: 'Energietransitie', rol: 'Programmamanager', expertise: 'waterstof, infrastructuur', benader: 'Planning en stand van zaken waterstofleidingen', dossiers: 'Waterstofcorridor', laatst: '2026-10-28' },
+       { naam: 'Jeroen Fictief', org: 'Omgevingsdienst', team: 'Vergunningen', rol: 'Vergunningverlener', expertise: 'vergunningen, stikstof', benader: 'Vragen over doorlooptijden en vergunbaarheid', dossiers: 'CCU-pilot', laatst: '2026-09-15' },
+       { naam: 'Fatima Demo', org: 'Provincie', team: 'Economie', rol: 'Beleidsadviseur', expertise: 'netcongestie, waterstof', benader: 'Afstemming provinciale inzet en subsidies', dossiers: 'Waterstofcorridor, Ontwikkelperspectief', laatst: '2026-11-05' },
+       { naam: 'Tom Test', org: 'Kennisinstituut', team: '', rol: 'Onderzoeker', expertise: 'CCU, circulaire grondstoffen', benader: 'Technische haalbaarheid en cijfers', dossiers: 'CCU-pilot', laatst: '2026-06-20' },
+       { naam: 'Iris Proef', org: 'Gemeente', team: 'Ruimte', rol: 'Planoloog', expertise: 'ruimtelijke ordening, netcongestie', benader: 'Ruimteclaims en bestemmingsplannen', dossiers: 'Ontwikkelperspectief', laatst: '' }
+      ].forEach(function (p) { people.push(schoon(p)); });
+      gewijzigd(); toonTab('zoeken'); toast('Voorbeelden toegevoegd.');
+    });
+    $('#btnWis').addEventListener('click', function (e) { bevestig(e.currentTarget, function () { people = []; sel = null; gewijzigd(); toast('Alles gewist.'); }); });
+  }
+
+  /* ---------- start ---------- */
+  var gestart = false;
+  function start() {
+    if (gestart) return; gestart = true;
+    if (GROOT) document.body.classList.add('groot');
+    load(); bind(); vulFilters(); status();
+    if (GROOT) { $('#filters').style.display = ''; document.querySelector('#tab-map').classList.add('on'); }
+    renderAll(true);
+  }
+  function officeKlaar(info) {
+    inOffice = !!(info && info.host);
+    inOneNote = inOffice && info.host === Office.HostType.OneNote;
+    start(); status();
+    if (GROOT && inOffice) {
+      try {
+        Office.context.ui.addHandlerAsync(Office.EventType.DialogParentMessageReceived, function (arg) { ontvang(arg.message); }, function () {
+          try { Office.context.ui.messageParent('klaar'); } catch (e) { }
+        });
+      } catch (e) { }
+    }
+  }
+  if (window.Office && Office.onReady) { Office.onReady(officeKlaar); setTimeout(start, 3000); }
+  else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+})();
+</script>
+</body>
+</html>
